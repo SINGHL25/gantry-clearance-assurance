@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gantry Clearance Assurance</title>
+<style>
+  :root{
+    --table:#0C1017; --sheet:#141B26; --card:#1A2331; --rule:#26313F; --rule2:#1E2836;
+    --ink:#D6E4F0; --dim:#6B829B; --faint:#455A70;
+    --pass:#46C08B; --fail:#E8564F; --marginal:#F2A93B; --newwork:#F2A93B;
+    --stamp:#8B78E0; --envelope:#4FA8E0;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--table);color:var(--ink);font-family:var(--sans);font-size:14px;
+    background-image:linear-gradient(var(--rule2) 1px,transparent 1px),linear-gradient(90deg,var(--rule2) 1px,transparent 1px);
+    background-size:56px 56px;background-position:-1px -1px}
+  .wrap{max-width:1260px;margin:0 auto;padding:18px 18px 56px}
+
+  /* title block — drawing sheet convention */
+  .titleblock{border:1px solid var(--rule);background:var(--sheet);display:grid;
+    grid-template-columns:1fr auto auto auto;margin-bottom:16px}
+  .tb-main{padding:13px 16px;border-right:1px solid var(--rule)}
+  .tb-main h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.28em;text-transform:uppercase}
+  .tb-main .sub{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:5px;letter-spacing:.06em}
+  .tb-cell{padding:13px 16px;border-right:1px solid var(--rule);min-width:96px}
+  .tb-cell:last-child{border-right:none}
+  .tb-cell .k{font-family:var(--mono);font-size:8.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.16em}
+  .tb-cell .v{font-family:var(--mono);font-size:13px;font-weight:700;margin-top:4px}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .controls button{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);
+    background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:8px 12px;cursor:pointer;transition:.14s}
+  .controls button:hover{color:var(--ink);border-color:var(--faint)}
+  .controls button[aria-pressed="true"]{color:var(--table);background:var(--ink);border-color:var(--ink);font-weight:700}
+  .controls .run{margin-left:auto;background:var(--stamp);color:#fff;border-color:var(--stamp);font-weight:700}
+  .controls .run:hover{filter:brightness(1.12);color:#fff}
+  button:focus-visible{outline:2px solid var(--stamp);outline-offset:2px}
+  .note{font-family:var(--mono);font-size:11px;color:var(--faint);margin:-6px 0 14px;line-height:1.7}
+
+  /* process spine */
+  .spine{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:16px}
+  .stg{background:var(--sheet);border:1px solid var(--rule);border-top:2px solid var(--rule);
+    padding:9px 8px 10px;cursor:pointer;transition:.16s;position:relative;text-align:left}
+  .stg:hover{border-color:var(--faint)}
+  .stg .no{font-family:var(--mono);font-size:9px;color:var(--faint);letter-spacing:.1em}
+  .stg .nm{font-size:11px;font-weight:600;margin-top:3px;line-height:1.25}
+  .stg .vd{font-family:var(--mono);font-size:8.5px;margin-top:5px;text-transform:uppercase;letter-spacing:.1em}
+  .stg[data-on="1"]{background:var(--card)}
+  .stg[data-active="1"]{border-top-width:3px}
+  .stg[data-dim="1"]{opacity:.34}
+
+  .panel{background:var(--sheet);border:1px solid var(--rule);padding:14px 16px}
+  .panel h2{font-size:9.5px;text-transform:uppercase;letter-spacing:.2em;color:var(--dim);margin:0 0 12px;font-weight:600;
+    display:flex;align-items:center;gap:9px}
+  .panel h2 .chip{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:none;
+    color:var(--dim);border:1px solid var(--rule);border-radius:2px;padding:2px 8px}
+  .grid{display:grid;gap:12px;grid-template-columns:1.05fr .95fr}
+  .full{grid-column:1/-1}
+  svg{display:block;width:100%}
+
+  /* spacer control */
+  .spacer{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+  .spacer label{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+  .spacer input[type=range]{flex:1;min-width:170px;accent-color:var(--newwork)}
+  .spacer .val{font-family:var(--mono);font-size:17px;font-weight:800;color:var(--newwork);min-width:76px;text-align:right}
+  .spacer .auto{font-family:var(--mono);font-size:10px;background:var(--card);border:1px solid var(--rule);
+    color:var(--dim);border-radius:3px;padding:5px 10px;cursor:pointer}
+  .spacer .auto:hover{color:var(--ink)}
+
+  /* lane table */
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+  th{text-align:right;color:var(--faint);font-weight:500;padding:5px 7px;border-bottom:1px solid var(--rule);
+    font-size:8.5px;text-transform:uppercase;letter-spacing:.14em}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:7px;border-bottom:1px solid var(--rule2)}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-block;padding:1px 7px;border-radius:2px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+
+  .findings{list-style:none;padding:0;margin:0}
+  .findings li{padding:7px 0 7px 20px;position:relative;border-top:1px solid var(--rule2);font-size:12.5px;line-height:1.55}
+  .findings li:first-child{border-top:none}
+  .findings li::before{content:"—";position:absolute;left:0;color:var(--faint);font-family:var(--mono)}
+  .verdictline{display:flex;align-items:baseline;gap:11px;margin-bottom:11px;flex-wrap:wrap}
+  .verdictline .vq{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.05em}
+  .verdictline .vh{font-size:15px;font-weight:650}
+
+  /* review board */
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .col{background:var(--card);border:1px solid var(--rule);padding:8px;min-height:96px}
+  .col .ch{font-family:var(--mono);font-size:8.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.14em;margin-bottom:7px;
+    display:flex;justify-content:space-between}
+  .cmt{background:var(--sheet);border:1px solid var(--rule);border-left:2px solid var(--dim);
+    padding:5px 7px;margin-bottom:5px;font-family:var(--mono);font-size:9.5px;transition:.3s}
+  .cmt.blocking{border-left-color:var(--fail)}
+  .cmt .cd{color:var(--faint);font-size:8.5px;margin-top:2px}
+  .holds{margin-top:11px;display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+  .hold{background:var(--card);border:1px solid var(--rule);padding:8px 10px;font-family:var(--mono);font-size:10px;
+    display:flex;gap:8px;align-items:flex-start}
+  .hold .hm{font-weight:800;min-width:13px}
+
+  /* work steps */
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0}
+  .steps li{padding:8px 0 8px 34px;position:relative;border-top:1px solid var(--rule2);font-size:12.5px;line-height:1.5}
+  .steps li:first-child{border-top:none}
+  .steps li::before{counter-increment:s;content:counter(s,decimal-leading-zero);position:absolute;left:0;top:9px;
+    font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .steps li.hold::before{color:var(--stamp)}
+  .steps li b{display:block;font-weight:650;margin-bottom:2px}
+  .steps li span{color:var(--dim);font-size:11.5px}
+
+  .assist{border-left:2px solid var(--stamp)}
+  .prio{display:inline-flex;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.16em;padding:3px 10px;border-radius:2px}
+  .headline{font-size:15px;font-weight:650;margin:11px 0 12px;line-height:1.4}
+  details{margin-top:12px;border-top:1px solid var(--rule);padding-top:10px}
+  summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.06em}
+  summary:hover{color:var(--ink)}
+  .trace{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:10px;white-space:pre-wrap;line-height:1.8}
+  .legend{display:flex;gap:15px;flex-wrap:wrap;font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:9px;letter-spacing:.04em}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .sw{width:9px;height:9px;display:inline-block}
+  footer{margin-top:24px;color:var(--faint);font-family:var(--mono);font-size:10px;text-align:center;letter-spacing:.06em}
+  @media(max-width:960px){.grid{grid-template-columns:1fr}.spine{grid-template-columns:repeat(4,1fr)}
+    .board{grid-template-columns:repeat(2,1fr)}.titleblock{grid-template-columns:1fr 1fr}}
+  @media(prefers-reduced-motion:reduce){#envelope{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div class="tb-main">
+      <h1>Gantry Clearance Assurance</h1>
+      <div class="sub">VERTICAL CLEARANCE · NON-CONFORMANCE · REMEDIATION · VERIFICATION</div>
+    </div>
+    <div class="tb-cell"><div class="k">Structure</div><div class="v" id="tb-struct">—</div></div>
+    <div class="tb-cell"><div class="k">Requirement</div><div class="v" id="tb-req">—</div></div>
+    <div class="tb-cell"><div class="k">Status</div><div class="v" id="tb-status">—</div></div>
+  </div>
+
+  <div class="controls" id="scenarios" role="group" aria-label="Select case">
+    <button data-s="as_surveyed" aria-pressed="true">as surveyed</button>
+    <button data-s="undersized_spacer">undersized spacer</button>
+    <button data-s="future_overlay">after resurfacing</button>
+    <button data-s="overlay_reserved">overlay reserved</button>
+    <button data-s="flatter_gantry">minimal camber</button>
+    <button data-s="already_compliant">already compliant</button>
+    <button class="run" id="run">▶ run the process</button>
+  </div>
+  <div class="note" id="note"></div>
+
+  <div class="spine" id="spine"></div>
+
+  <div class="panel full" style="margin-bottom:12px">
+    <h2>Elevation looking upstream · true scale
+      <span class="chip" id="elevchip">as surveyed</span></h2>
+    <svg id="elev" viewBox="0 0 1000 400" aria-label="gantry elevation with clearance dimensions"></svg>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--envelope)"></i>required clearance envelope</span>
+      <span><i class="sw" style="background:var(--fail)"></i>below requirement</span>
+      <span><i class="sw" style="background:var(--marginal)"></i>marginal</span>
+      <span><i class="sw" style="background:var(--pass)"></i>conforming</span>
+      <span><i class="sw" style="background:var(--newwork)"></i>new work (spacer)</span>
+    </div>
+    <div class="spacer">
+      <label for="sp">Spacer</label>
+      <input type="range" id="sp" min="0" max="300" step="20" value="0">
+      <span class="val" id="spval">0 mm</span>
+      <button class="auto" id="autosize">size it automatically</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Clearance by lane <span class="chip" id="lanechip">—</span></h2>
+      <table id="lanes"><thead><tr>
+        <th>Lane</th><th>Governing item</th><th>Clearance</th><th>On requirement</th><th>Status</th>
+      </tr></thead><tbody></tbody></table>
+      <svg id="lanechart" viewBox="0 0 520 150" style="margin-top:12px"></svg>
+    </div>
+
+    <div class="panel" id="stagepanel">
+      <h2 id="stageh2">Stage</h2>
+      <div class="verdictline">
+        <span class="vq" id="stageq"></span>
+        <span class="vh" id="stageheadline"></span>
+      </div>
+      <div id="stagebody"></div>
+    </div>
+
+    <div class="panel assist full" id="assist">
+      <h2>Engineering assistant</h2>
+      <span class="prio" id="prio">NORMAL</span>
+      <div class="headline" id="headline"></div>
+      <ul class="findings" id="actions"></ul>
+      <details><summary>show working</summary><div class="trace" id="trace"></div></details>
+    </div>
+  </div>
+
+  <footer>gantry-clearance-assurance · zero-dependency · synthetic survey data · client-side only</footer>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   Engine — ported from the gantry_clearance package (Python).
+   ========================================================================== */
+
+/* ---- geometry ---- */
+const MODULE_M = 1.17;
+const mkGantry = (span, soffit, camber) => ({span, soffit, camber});
+function soffitLevel(g, x){
+  const half = g.span/2;
+  const t = (x - half)/half;
+  return g.soffit + g.camber*Math.max(0, 1 - t*t);
+}
+function mkCarriageway(leftEdge, lanes, crossfall, overlay){
+  return {leftEdge, lanes, crossfall, leftLevel:0, overlay:overlay||0};
+}
+const surfaceLevel = (c, x) => c.leftLevel - c.crossfall*(x - c.leftEdge) + c.overlay;
+const rightEdge = c => c.lanes[c.lanes.length-1].left + c.lanes[c.lanes.length-1].w;
+const cwWidth = c => rightEdge(c) - c.leftEdge;
+function standardCarriageway(overlay){
+  const lanes=[]; for(let i=0;i<4;i++) lanes.push({name:`L${i+1}`, left:7.0+i*3.5, w:3.5, centre:7.0+i*3.5+1.75});
+  return mkCarriageway(7.0, lanes, 0.025, overlay||0);
+}
+
+/* ---- equipment ---- */
+const KINDS = ["vr_sensor","vr_illuminator","dsrc_transceiver","vdc_sensor"];
+const DROP = {vr_sensor:0.72, vr_illuminator:0.42, dsrc_transceiver:0.38, vdc_sensor:0.30};
+const KLABEL = {vr_sensor:"VR sensor", vr_illuminator:"VR illuminator",
+  dsrc_transceiver:"DSRC transceiver", vdc_sensor:"VDC sensor"};
+const FRAME_MOUNTED = new Set(["vr_sensor"]);
+function buildEquipment(c){
+  const out=[];
+  c.lanes.forEach(l=>KINDS.forEach((k,n)=>out.push({
+    id:`${l.name}-${k}`, kind:k, offset:l.centre+(n-1.5)*0.55, lane:l.name, raise:0})));
+  return out;
+}
+const dropOf = it => DROP[it.kind] - it.raise;
+
+/* ---- standards ---- */
+const STANDARDS = {
+  motorway_gantry:{name:"Overhead gantry over motorway", base:6.500, overlay:0, tol:0, margin:0.100,
+    note:"6.5 m base plus a 100 mm owner margin."},
+  motorway_gantry_with_overlay:{name:"Overhead gantry, future overlay reserved", base:6.500, overlay:0.050, tol:0.025, margin:0.100,
+    note:"Adds a 50 mm resurfacing reserve and 25 mm survey tolerance."},
+};
+const requiredOf = s => s.base + s.overlay + s.tol + s.margin;
+
+/* ---- assessment ---- */
+const MARGINAL_BAND = 0.050;
+function statusOf(cl, req){
+  if(cl < req) return "non_conforming";
+  if(cl < req + MARGINAL_BAND) return "marginal";
+  return "conforming";
+}
+function assess(g, c, items, std){
+  const req = requiredOf(std);
+  const ia = items.map(it=>{
+    const soffit = soffitLevel(g, it.offset);
+    const road = surfaceLevel(c, it.offset);
+    const underside = soffit - dropOf(it);
+    const cl = underside - road;
+    return {item:it, road, soffit, underside, clearance:cl, required:req,
+      status:statusOf(cl, req), deficit:Math.max(0, req-cl), margin:cl-req};
+  });
+  const byLane = {};
+  ia.forEach(x=>{(byLane[x.item.lane]=byLane[x.item.lane]||[]).push(x);});
+  const lanes = Object.keys(byLane).sort().map(name=>{
+    const worst = byLane[name].reduce((a,b)=>a.clearance<=b.clearance?a:b);
+    return {lane:name, min:worst.clearance, required:req, status:worst.status,
+      deficit:Math.max(0, req-worst.clearance), governing:worst.item.kind,
+      governingId:worst.item.id};
+  });
+  const nonConf = ia.filter(x=>x.status==="non_conforming");
+  const worstDeficit = ia.reduce((m,x)=>Math.max(m, x.deficit), 0);
+  const governing = ia.reduce((a,b)=>a.clearance<=b.clearance?a:b);
+  return {items:ia, lanes, required:req, standardName:std.name,
+    conforming:nonConf.length===0, nonConforming:nonConf, worstDeficit, governing,
+    affectedKinds:[...new Set(nonConf.map(x=>x.item.kind))].sort(),
+    nonConformingLanes:lanes.filter(l=>l.status==="non_conforming")};
+}
+
+/* ---- remediation ---- */
+const CATALOGUE = [0.060,0.100,0.140,0.180,0.220,0.260];
+const SIZING_MARGIN = 0.030;
+function selectRaiser(need){
+  const target = need + SIZING_MARGIN;
+  for(const h of CATALOGUE) if(h >= target)
+    return {height:h, need, margin:h-need, fromCatalogue:true,
+      reason:`smallest stock spacer clearing ${(need*1000).toFixed(0)} mm deficit plus ${SIZING_MARGIN*1000} mm margin`};
+  const t = CATALOGUE[CATALOGUE.length-1];
+  return {height:t, need, margin:t-need, fromCatalogue:false,
+    reason:`deficit exceeds the tallest stock spacer (${t*1000} mm): a bespoke spacer or a structural adjustment is required`};
+}
+const applyRaise = (items, kind, h) => items.map(i=>
+  (i.kind===kind && FRAME_MOUNTED.has(i.kind)) ? {...i, raise:i.raise+h} : {...i});
+function planRemediation(g, c, items, std, before, forced){
+  before = before || assess(g, c, items, std);
+  const notes=[];
+  if(before.conforming)
+    return {selection:{height:0, need:0, margin:0, fromCatalogue:true, reason:"already conforming: no spacer required"},
+      affected:[], kind:null, before, after:before, notes:["No remediation required."], resolves:true};
+  const selection = (forced===null || forced===undefined)
+    ? selectRaiser(before.worstDeficit)
+    : {height:forced, need:before.worstDeficit, margin:forced-before.worstDeficit,
+       fromCatalogue:CATALOGUE.includes(forced), reason:"height specified by the engineer"};
+  const kind = before.governing.item.kind;
+  const raised = applyRaise(items, kind, selection.height);
+  const affected = raised.filter(i=>i.kind===kind && FRAME_MOUNTED.has(i.kind)).map(i=>i.id);
+  const after = assess(g, c, raised, std);
+  notes.push(after.conforming
+    ? `All lanes conform after fitting a ${(selection.height*1000).toFixed(0)} mm spacer.`
+    : `${after.nonConforming.length} item(s) still non-conforming: the selected spacer is undersized.`);
+  return {selection, affected, kind, before, after, notes, resolves:after.conforming};
+}
+
+/* ---- field of view ---- */
+const HALF_FOV=12.0, BEAM_OFFSET=2.20, BEAM_DROP=0.31, MAX_TILT=30.0, OPERATING_TILT=26.0, MIN_WINDOW=2.0;
+const minTilt = r => HALF_FOV + Math.atan2(BEAM_DROP + r, BEAM_OFFSET)*180/Math.PI;
+function evaluateFov(r){
+  const mt = minTilt(r), obstructed = OPERATING_TILT < mt, margin = OPERATING_TILT - mt;
+  const width = Math.max(0, MAX_TILT - mt);
+  const reasons = [
+    `beam edge ${BEAM_OFFSET.toFixed(2)} m forward and ${((BEAM_DROP+r)*1000).toFixed(0)} mm below the sensor`,
+    `half field of view ${HALF_FOV} deg gives a ${mt.toFixed(1)} deg minimum tilt`];
+  if(r>0) reasons.push(`spacer of ${(r*1000).toFixed(0)} mm lifts the minimum tilt from ${minTilt(0).toFixed(1)} to ${mt.toFixed(1)} deg`);
+  reasons.push(obstructed
+    ? `operating tilt ${OPERATING_TILT} deg is below the minimum: the beam clips the field of view`
+    : `operating tilt ${OPERATING_TILT} deg clears the beam by ${margin.toFixed(1)} deg`);
+  if(width>0 && width<MIN_WINDOW) reasons.push(`usable window is only ${width.toFixed(1)} deg: too tight to commission reliably`);
+  return {min:mt, max:MAX_TILT, operating:OPERATING_TILT, raise:r, obstructed, margin, width,
+    workable: !obstructed && width >= MIN_WINDOW, reasons};
+}
+
+/* ---- review ---- */
+const COMMENTS = [
+  ["C-01","design","blocking","FOV","Confirm the raised sensor's field of view is not clipped by the girder beam, and state the tilt range over which that holds."],
+  ["C-02","commissioning","major","Alignment","Confirm re-alignment to the aim point follows the commissioning procedure, and whether classification sensor alignment is affected."],
+  ["C-03","structural","blocking","Fixing","The spacer must be positively fixed, not seated in existing slots. Confirm the fixing and any second vibration path."],
+  ["C-04","documentation","blocking","General","Design detail not supplied: steel grade, sections, bolting. Illustrations in a memo are not a substitute for drawings."],
+  ["C-05","approval","blocking","General","Structural drawings for work over a live carriageway must carry a certifying engineer's signature."],
+  ["C-06","design","blocking","Clearance","State the actual clearance per lane, how many items are affected, and the clearance each lane is raised to."],
+  ["C-07","documentation","minor","Geometry","Confirm whether the system geometry drawing needs reissue for the new sensor heights."],
+  ["C-08","commissioning","minor","Parameters","List any system parameters requiring adjustment after the change."],
+  ["C-09","quality","major","Validation","List the tests that will demonstrate no performance impact."],
+  ["C-10","construction","blocking","Method","State the installation method and confirm whether lane closures are required."],
+  ["C-11","construction","major","Work plan","Work plan must settle principal contractor and traffic control responsibilities."],
+  ["C-12","quality","blocking","Non-conformance","Raise a non-conformance report with the spacer as its disposition."],
+  ["C-13","documentation","major","Drawing register","New drawings require authority drawing numbers as an addendum."],
+  ["C-14","documentation","minor","Figures","Tilt envelope differs between two figures. Check and confirm."],
+];
+const HOLDS = [
+  ["H-1","Certified structural drawings"], ["H-2","Non-conformance report raised"],
+  ["H-3","Authority drawing numbers issued"], ["H-4","Traffic management agreed"],
+];
+function makeRegister(){
+  return {comments:COMMENTS.map(([ref,disc,sev,sec,sum])=>({ref,disc,sev,sec,sum,state:"open",response:""})),
+    holds:HOLDS.map(([ref,title])=>({ref,title,met:false}))};
+}
+function resolveRegister(reg, project){
+  const plan=project.plan, before=project.before, fov=project.fovAfter, wp=project.workpack;
+  const laneLine = a => a ? a.lanes.map(l=>`${l.lane} ${l.min.toFixed(3)} m`).join("; ") : "";
+  const R = {
+    "C-01": fov ? `Permitted tilt window after the change is ${fov.min.toFixed(1)} to ${fov.max.toFixed(0)} deg; the operating angle sits ${fov.margin.toFixed(1)} deg inside it.` : "Recalculated.",
+    "C-02": "Raised units are re-aimed to their surveyed aim points under the standard commissioning procedure. Classification sensors are untouched.",
+    "C-03": "The spacer is positively fixed to the girder, not seated. No second hanging interface and no additional vibration path.",
+    "C-04": `Spacer general arrangement, fixing detail, material grade and bolting issued as drawings for the ${(plan.selection.height*1000).toFixed(0)} mm spacer.`,
+    "C-05": "Structural drawings certified and signed by a registered professional engineer.",
+    "C-06": `Clearance before: ${laneLine(before)}. After: ${laneLine(plan.after)}.`,
+    "C-07": "The height change does not alter the field of view; the geometry drawing is reissued for the revised mounting height only.",
+    "C-08": "No system parameter changes result: field of view and aim points are unchanged after re-aiming.",
+    "C-09": "The revised height stays inside the qualified installation range, so baseline capture and classification tests cover it.",
+    "C-10": wp && wp.lanes.length ? `Installation requires closure of ${wp.lanes.join(", ")} under a night possession; estimated ${wp.duration} min on site.` : "Lane closures required.",
+    "C-11": "Work plan issued with method, crew, possession window and traffic control responsibilities.",
+    "C-12": "Non-conformance report raised, with the spacer as its disposition and the verification survey as closure.",
+    "C-13": "Authority drawing numbers requested and allocated to the new sheets.",
+    "C-14": "Figures regenerated from a single geometry source so the tilt envelope is consistent.",
+  };
+  reg.comments.forEach(c=>{c.response = R[c.ref] || "Addressed in the reissued document."; c.state="closed";});
+  reg.holds.forEach(h=>h.met=true);
+}
+const regApproved = r => r.comments.every(c=>c.state==="closed") && r.holds.every(h=>h.met);
+
+/* ---- work package ---- */
+const SETUP=45, TEARDOWN=30, PER_FIT=25, PER_ALIGN=15, NIGHT=360;
+function buildWorkPackage(plan){
+  const items = plan.affected.length;
+  const lanes = [...new Set(plan.affected.map(id=>id.split("-")[0]))].sort();
+  const duration = SETUP + items*(PER_FIT+PER_ALIGN) + TEARDOWN;
+  const h = (plan.selection.height*1000).toFixed(0);
+  const steps = [
+    ["Confirm approvals in place","Certified drawings, non-conformance report and traffic management agreement closed out before mobilising.",true],
+    ["Establish traffic management",`Close ${lanes.join(", ")||"the affected lanes"} under the agreed night possession; gantry access rules apply throughout.`,false],
+    ["Set the tolling system to maintenance mode","Suspend live transactions for the affected lanes so no passage is lost.",false],
+    ["Isolate power to the affected units","Lock off and prove dead before any disconnection.",false],
+    ["Disconnect and lift the units","Disconnect cabling and lift each unit to the girder floor. Cabling is reused unchanged.",false],
+    [`Fit the ${h} mm spacers`,"Fix each spacer between girder and equipment frame. No drilling and no welding, so corrosion protection is undisturbed.",false],
+    ["Remount and re-aim","Remount each frame on its spacer and re-aim to the surveyed aim point; verify tilt sits inside the permitted window.",false],
+    ["Reconnect, energise and return to service","Reconnect cabling, restore power, return to operational mode and confirm passages are captured.",false],
+    ["Verification survey","Re-survey the raised units and confirm every lane meets the requirement. This closes the non-conformance.",true],
+  ].map(([title,detail,hold],i)=>({order:i+1,title,detail,hold}));
+  const notes = [];
+  notes.push(items===0 ? "No items require raising; no site work is generated."
+    : `${items} unit(s) across ${lanes.length} lane(s) receive a ${h} mm spacer.`);
+  notes.push(duration>NIGHT ? `Estimated ${duration} min exceeds a single ${NIGHT} min possession.`
+    : `Estimated ${duration} min fits inside a single night possession.`);
+  notes.push("Lane closures are required: the work is directly over the running lanes.");
+  return {steps, lanes, items, duration, fitsOneShift:duration<=NIGHT, notes};
+}
+
+/* ---- pipeline ---- */
+const STAGES = ["survey","assess","size","validate","package","review","approve","verify"];
+const STAGE_TITLE = {survey:"Survey", assess:"Assess clearance", size:"Size remediation",
+  validate:"Validate side effects", package:"Package the change", review:"Design review",
+  approve:"Approval gate", verify:"Verify on site"};
+const STAGE_Q = {survey:"What is actually there?", assess:"Does every lane meet the requirement?",
+  size:"What is the smallest fix that works?", validate:"Does the fix break anything else?",
+  package:"What goes to site, and who signs it?", review:"Has every comment been answered?",
+  approve:"Can this be released?", verify:"Did it work?"};
+
+function runPipeline(g, c, items, std, forced){
+  const project = {gantry:g, carriageway:c, items, std, stages:[], register:makeRegister()};
+  const S = (stage,verdict,headline,findings,data)=>project.stages.push({stage,verdict,headline,findings,data});
+
+  S("survey","info", `${items.length} units surveyed across ${c.lanes.length} lanes`, [
+    `Gantry span ${g.span.toFixed(1)} m with ${(g.camber*1000).toFixed(0)} mm camber at mid-span.`,
+    `Carriageway ${cwWidth(c).toFixed(1)} m wide at ${(c.crossfall*100).toFixed(1)}% crossfall.`
+      + (c.overlay ? ` Includes ${(c.overlay*1000).toFixed(0)} mm of overlay since construction.` : ""),
+    "Camber lifts the girder at mid-span while crossfall drops the road to one side, so the tightest gap is off-centre."], {});
+
+  const before = assess(g, c, items, std); project.before = before;
+  const gov = before.governing, bad = before.nonConformingLanes;
+  S("assess", before.conforming?"pass":"fail",
+    before.conforming ? `All ${before.lanes.length} lanes meet ${before.required.toFixed(2)} m`
+      : `${bad.length} of ${before.lanes.length} lanes below ${before.required.toFixed(2)} m`,
+    [`Governing item is the ${KLABEL[gov.item.kind]} in ${gov.item.lane} at ${gov.clearance.toFixed(3)} m.`]
+      .concat(bad.map(l=>`${l.lane}: ${l.min.toFixed(3)} m, short by ${(l.deficit*1000).toFixed(0)} mm.`))
+      .concat(bad.length ? [`Only the ${before.affectedKinds.map(k=>KLABEL[k]).join(", ")} are involved; everything else on the structure clears.`] : []),
+    before);
+
+  const plan = planRemediation(g, c, items, std, before, forced); project.plan = plan;
+  S("size", plan.resolves?"pass":"fail",
+    plan.selection.height ? `${(plan.selection.height*1000).toFixed(0)} mm spacer on ${plan.affected.length} unit(s)` : "No remediation required",
+    [plan.selection.reason].concat(plan.notes), plan);
+
+  project.fovBefore = evaluateFov(0); project.fovAfter = evaluateFov(plan.selection.height);
+  const fov = project.fovAfter;
+  S("validate", fov.workable?"pass":"fail",
+    fov.workable ? `Optics hold: ${fov.margin.toFixed(1)} deg of tilt margin remains` : "Beam clips the field of view at the operating angle",
+    fov.reasons.concat([
+      `Tilt window narrows from ${project.fovBefore.width.toFixed(1)} to ${fov.width.toFixed(1)} deg.`,
+      "Added mass is negligible against the girder's design load; no structural change.",
+      "No drilling and no welding, so corrosion protection is undisturbed.",
+      "Cabling is reused as installed; no electrical modification.",
+      "Maintenance access is preserved: beam-mounted units still rotate for servicing."]),
+    {fovBefore:project.fovBefore, fovAfter:fov});
+
+  const wp = buildWorkPackage(plan); project.workpack = wp;
+  S("package","info", `${wp.items} unit(s), ${(wp.duration/60).toFixed(1)} h on site`,
+    wp.notes.concat(["Non-conformance report, certified drawings and authority drawing numbers are raised as hold points on the review."]), wp);
+
+  resolveRegister(project.register, project);
+  const approvedReg = regApproved(project.register);
+  S("review", approvedReg?"pass":"blocked",
+    approvedReg ? `All ${project.register.comments.length} comments closed` : "Comments outstanding",
+    ["All comments closed and all hold points satisfied"], project.register);
+
+  const gateOk = approvedReg && plan.resolves && fov.workable;
+  const blockers=[];
+  if(!plan.resolves) blockers.push("Remediation does not bring every lane into conformance.");
+  if(!fov.workable) blockers.push("Field of view is obstructed at the operating tilt.");
+  S("approve", gateOk?"pass":"blocked", gateOk?"Released for construction":"Not released",
+    blockers.length?blockers:["Comments closed, hold points satisfied, remediation proven and optics validated."],
+    {released:gateOk, blockers});
+
+  if(gateOk && plan.kind){
+    const verified = assess(g, c, applyRaise(items, plan.kind, plan.selection.height), std);
+    project.verified = verified;
+    S("verify", verified.conforming?"pass":"fail",
+      verified.conforming ? "Verification survey confirms every lane compliant" : "Verification survey still shows a shortfall",
+      verified.lanes.map(l=>`${l.lane}: ${l.min.toFixed(3)} m (${((l.min-verified.required)*1000>=0?"+":"")}${((l.min-verified.required)*1000).toFixed(0)} mm on requirement).`)
+        .concat(verified.conforming?["Non-conformance closed out against the verification survey."]:[]), verified);
+  } else if(gateOk && before.conforming){
+    project.verified = before;
+    S("verify","pass","Nothing to verify: the structure already complies",
+      before.lanes.map(l=>`${l.lane}: ${l.min.toFixed(3)} m (+${((l.min-before.required)*1000).toFixed(0)} mm on requirement).`)
+        .concat(["No spacer fitted and no site work generated."]), before);
+  } else {
+    S("verify","blocked","Not reached",["Site verification cannot start until the change is released."], {});
+  }
+  return project;
+}
+
+/* ---- assistant ---- */
+function advise(project){
+  const before=project.before, plan=project.plan, fov=project.fovAfter, wp=project.workpack, verified=project.verified;
+  const trace=[`Requirement ${before.required.toFixed(2)} m (${project.std.name}).`,
+    `Lowest item ${before.governing.clearance.toFixed(3)} m; ${before.nonConformingLanes.length} lane(s) non-conforming.`];
+  if(plan.selection.height) trace.push(`Spacer ${(plan.selection.height*1000).toFixed(0)} mm selected against a ${(plan.selection.need*1000).toFixed(0)} mm deficit (${(plan.selection.margin*1000).toFixed(0)} mm margin).`);
+  trace.push(`Tilt window ${fov.min.toFixed(1)}-${fov.max.toFixed(0)} deg, operating at ${fov.operating.toFixed(0)} deg.`);
+  trace.push(`${wp.items} unit(s), ${wp.duration} min, ${wp.lanes.length} lane closure(s).`);
+  if(verified) trace.push(`Verification survey: worst lane ${Math.min(...verified.lanes.map(l=>l.min)).toFixed(3)} m.`);
+
+  const released = project.stages.find(s=>s.stage==="approve").verdict==="pass";
+  const failing = project.stages.filter(s=>s.verdict==="fail" && s.stage!=="assess");
+  const resolved = released && verified && verified.conforming;
+  const actions=[]; let priority, headline;
+
+  if(resolved){
+    priority="normal";
+    const worst = Math.min(...verified.lanes.map(l=>l.min));
+    if(!before.conforming){
+      headline = `Non-conformance closed: every lane now at or above ${worst.toFixed(3)} m against a ${verified.required.toFixed(2)} m requirement`;
+      actions.push("File the verification survey as the closure evidence for the non-conformance report.");
+      if(plan.selection.height) actions.push(`Record the ${(plan.selection.height*1000).toFixed(0)} mm spacer on the asset register so the next resurfacing assessment starts from the corrected geometry.`);
+      actions.push(`Tilt window is now ${fov.width.toFixed(1)} deg wide — note it as a constraint before any future height change.`);
+    } else {
+      headline = `Structure complies: worst lane ${worst.toFixed(3)} m against a ${verified.required.toFixed(2)} m requirement`;
+      actions.push("No remediation required. Re-assess after the next resurfacing.");
+    }
+  } else if(failing.length){
+    priority="critical";
+    headline = `${STAGE_TITLE[failing[0].stage]} fails: ${failing[0].headline}`;
+    failing.forEach(s=>actions.push(`[${s.stage}] ${s.headline}`));
+    if(!plan.resolves) actions.push("Select a taller spacer or escalate to a structural adjustment.");
+    if(!fov.workable) actions.push("Reduce the spacer height or move the sensor forward of the beam so the tilt window reopens.");
+  } else {
+    priority="elevated"; headline="Change is not releasable";
+    actions.push("Complete the remaining stages before release.");
+  }
+  if(plan.after && !plan.after.conforming===false){
+    const head = Math.min(...plan.after.lanes.map(l=>l.min - plan.after.required));
+    if(plan.resolves && head < 0.050) actions.push(`Post-fix headroom is only ${(head*1000).toFixed(0)} mm: flag the structure before the next asphalt overlay.`);
+  }
+  return {priority, headline, actions, trace};
+}
+
+/* ---- scenarios ---- */
+const SCEN = {
+  as_surveyed: ()=>({title:"As surveyed", g:mkGantry(28.2,7.085,0.09), c:standardCarriageway(),
+    std:STANDARDS.motorway_gantry, forced:null,
+    note:"Camber and crossfall pull in opposite directions, so the two lanes nearest the high side fall below the requirement."}),
+  undersized_spacer: ()=>({title:"Undersized spacer", g:mkGantry(28.2,7.085,0.09), c:standardCarriageway(),
+    std:STANDARDS.motorway_gantry, forced:0.100,
+    note:"A 100 mm spacer looks generous against a 139 mm deficit until you check it: the worst lane is still short and the change cannot be released."}),
+  future_overlay: ()=>({title:"After resurfacing", g:mkGantry(28.2,7.085,0.09), c:standardCarriageway(0.040),
+    std:STANDARDS.motorway_gantry, forced:null,
+    note:"Forty millimetres of new asphalt raises the road under every lane and takes the same amount straight off the clearance."}),
+  overlay_reserved: ()=>({title:"Overlay reserved", g:mkGantry(28.2,7.085,0.09), c:standardCarriageway(),
+    std:STANDARDS.motorway_gantry_with_overlay, forced:null,
+    note:"Reserving the resurfacing allowance up front raises the bar to 6.675 m — and the taller spacer that demands puts the girder beam back in the camera's field of view."}),
+  flatter_gantry: ()=>({title:"Minimal camber", g:mkGantry(28.2,7.10,0.010), c:standardCarriageway(),
+    std:STANDARDS.motorway_gantry, forced:null,
+    note:"With the camber almost gone, crossfall alone governs and the shortfall marches across the carriageway from the high side."}),
+  already_compliant: ()=>({title:"Already compliant", g:mkGantry(28.2,7.30,0.09), c:standardCarriageway(),
+    std:STANDARDS.motorway_gantry, forced:null,
+    note:"Nothing is short, so no spacer is sized and no site work is generated. The process should stop, not invent work."}),
+};
+
+/* ==========================================================================
+   Presentation
+   ========================================================================== */
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduce = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+const STATUS_COL = {conforming:"--pass", marginal:"--marginal", non_conforming:"--fail"};
+const VERDICT_COL = {pass:"--pass", fail:"--fail", blocked:"--marginal", info:"--dim"};
+
+let scen=null, project=null, rec=null, activeStage=0, unlocked=0, manualSpacer=null, runTimer=null, envT=0, envReq=null;
+
+/* --- elevation drawing --- */
+const VB_W=1000, VB_H=400, PX=31, X0=52, Y0=336;
+const ex = m => X0 + m*PX;
+const ey = lv => Y0 - lv*PX;
+
+function dimLine(x, yTop, yBot, text, col, side){
+  // vertical dimension with extension lines, arrowheads and the figure on the line
+  const t = 7, off = side==="l" ? -1 : 1;
+  return `
+    <line x1="${x-9}" y1="${yTop}" x2="${x+9}" y2="${yTop}" stroke="${col}" stroke-width="0.6" opacity="0.75"/>
+    <line x1="${x-9}" y1="${yBot}" x2="${x+9}" y2="${yBot}" stroke="${col}" stroke-width="0.6" opacity="0.75"/>
+    <line x1="${x}" y1="${yTop}" x2="${x}" y2="${yBot}" stroke="${col}" stroke-width="0.9"/>
+    <path d="M ${x} ${yTop} l -3 ${t} l 6 0 Z" fill="${col}"/>
+    <path d="M ${x} ${yBot} l -3 ${-t} l 6 0 Z" fill="${col}"/>
+    <rect x="${x-27}" y="${(yTop+yBot)/2-8}" width="54" height="15" fill="${cssv('--sheet')}" opacity="0.92"/>
+    <text x="${x}" y="${(yTop+yBot)/2+3.5}" fill="${col}" font-size="11" font-family="monospace"
+      font-weight="700" text-anchor="middle">${text}</text>`;
+}
+
+function drawElevation(){
+  const g = scen.g, c = scen.c, std = scen.std;
+  const spacer = currentSpacer();
+  const items = applyRaise(scen.items, "vr_sensor", spacer);
+  const a = assess(g, c, items, std);
+  envReq = a.required;
+  let h = "";
+
+  // sheet border
+  h += `<rect x="6" y="6" width="${VB_W-12}" height="${VB_H-12}" fill="none" stroke="${cssv('--rule')}" stroke-width="1"/>`;
+
+  // ground / road
+  const roadL = ey(surfaceLevel(c, c.leftEdge)), roadR = ey(surfaceLevel(c, rightEdge(c)));
+  h += `<path d="M ${ex(0)} ${Y0+14} L ${ex(g.span)} ${Y0+14} L ${ex(g.span)} ${roadR} L ${ex(c.leftEdge)} ${roadL} Z"
+         fill="${cssv('--card')}" opacity="0.55"/>`;
+  h += `<line x1="${ex(c.leftEdge)}" y1="${roadL}" x2="${ex(rightEdge(c))}" y2="${roadR}" stroke="${cssv('--ink')}" stroke-width="1.6"/>`;
+  // lane divisions
+  c.lanes.forEach(l=>{
+    const xr = l.left + l.w;
+    h += `<line x1="${ex(xr)}" y1="${ey(surfaceLevel(c,xr))}" x2="${ex(xr)}" y2="${ey(surfaceLevel(c,xr))+9}" stroke="${cssv('--faint')}" stroke-width="0.9"/>`;
+    h += `<text x="${ex(l.centre)}" y="${Y0+30}" fill="${cssv('--faint')}" font-size="9.5" font-family="monospace"
+            text-anchor="middle" letter-spacing="1">${l.name}</text>`;
+  });
+
+  // columns
+  [0, g.span].forEach(x=>{
+    h += `<rect x="${ex(x)-7}" y="${ey(soffitLevel(g,x))}" width="14" height="${Y0+14-ey(soffitLevel(g,x))}"
+           fill="${cssv('--card')}" stroke="${cssv('--dim')}" stroke-width="1"/>`;
+    h += `<rect x="${ex(x)-16}" y="${Y0+10}" width="32" height="9" fill="${cssv('--card')}" stroke="${cssv('--dim')}" stroke-width="1"/>`;
+  });
+
+  // girder — top chord (cambered), bottom chord, web
+  const pts=[]; for(let x=0;x<=g.span;x+=0.4) pts.push(`${ex(x)},${ey(soffitLevel(g,x)+1.05)}`);
+  h += `<polyline points="${pts.join(" ")}" fill="none" stroke="${cssv('--dim')}" stroke-width="1.6"/>`;
+  const bot=[]; for(let x=0;x<=g.span;x+=0.4) bot.push(`${ex(x)},${ey(soffitLevel(g,x))}`);
+  h += `<polyline points="${bot.join(" ")}" fill="none" stroke="${cssv('--ink')}" stroke-width="1.8"/>`;
+  for(let x=0.6;x<g.span;x+=MODULE_M){
+    h += `<line x1="${ex(x)}" y1="${ey(soffitLevel(g,x))}" x2="${ex(x+MODULE_M/2)}" y2="${ey(soffitLevel(g,x+MODULE_M/2)+1.05)}"
+           stroke="${cssv('--rule')}" stroke-width="0.7"/>`;
+    h += `<line x1="${ex(x+MODULE_M/2)}" y1="${ey(soffitLevel(g,x+MODULE_M/2)+1.05)}" x2="${ex(x+MODULE_M)}" y2="${ey(soffitLevel(g,x+MODULE_M))}"
+           stroke="${cssv('--rule')}" stroke-width="0.7"/>`;
+  }
+
+  // required-clearance envelope sweeping across
+  const envX = c.leftEdge + envT*(cwWidth(c));
+  const envTop = ey(surfaceLevel(c, envX) + a.required);
+  h += `<g id="envelope">
+    <rect x="${ex(envX)-30}" y="${envTop}" width="60" height="${ey(surfaceLevel(c,envX))-envTop}"
+      fill="${cssv('--envelope')}" opacity="0.10"/>
+    <line x1="${ex(envX)-30}" y1="${envTop}" x2="${ex(envX)+30}" y2="${envTop}" stroke="${cssv('--envelope')}" stroke-width="1.4" stroke-dasharray="5 3"/>
+    <text x="${ex(envX)+35}" y="${envTop+4}" fill="${cssv('--envelope')}" font-size="9.5" font-family="monospace">${a.required.toFixed(2)} m</text>
+  </g>`;
+
+  // equipment
+  a.items.forEach(ia=>{
+    const it = ia.item, x = ex(it.offset);
+    const yTop = ey(ia.soffit), yBot = ey(ia.underside);
+    const governing = it.kind === "vr_sensor";
+    const col = governing ? cssv(STATUS_COL[ia.status]) : cssv("--faint");
+    // spacer, drawn as new work
+    if(it.raise > 0 && governing){
+      const ySp = ey(ia.soffit - it.raise);
+      h += `<rect x="${x-6}" y="${yTop}" width="12" height="${ySp-yTop}" fill="${cssv('--newwork')}" opacity="0.85"/>`;
+      h += `<rect x="${x-6}" y="${yTop}" width="12" height="${ySp-yTop}" fill="none" stroke="${cssv('--newwork')}" stroke-width="0.8"/>`;
+    }
+    const bodyTop = ey(ia.soffit - it.raise);
+    h += `<line x1="${x}" y1="${bodyTop}" x2="${x}" y2="${yBot}" stroke="${col}" stroke-width="1"/>`;
+    h += `<rect x="${x-5}" y="${yBot-7}" width="10" height="7" fill="${col}" opacity="${governing?1:0.55}"/>`;
+  });
+
+  // per-lane dimension from road to governing underside
+  a.lanes.forEach(l=>{
+    const gi = a.items.find(x=>x.item.id === l.governingId);
+    const lane = c.lanes.find(x=>x.name===l.lane);
+    const x = ex(lane.centre);
+    h += dimLine(x, ey(gi.underside), ey(gi.road), `${l.min.toFixed(3)}`, cssv(STATUS_COL[l.status]));
+  });
+
+  // span dimension along the bottom
+  h += `<line x1="${ex(0)}" y1="${Y0+46}" x2="${ex(g.span)}" y2="${Y0+46}" stroke="${cssv('--faint')}" stroke-width="0.8"/>`;
+  h += `<path d="M ${ex(0)} ${Y0+46} l ${7} -3 l 0 6 Z" fill="${cssv('--faint')}"/>`;
+  h += `<path d="M ${ex(g.span)} ${Y0+46} l ${-7} -3 l 0 6 Z" fill="${cssv('--faint')}"/>`;
+  h += `<rect x="${(ex(0)+ex(g.span))/2-34}" y="${Y0+39}" width="68" height="14" fill="${cssv('--sheet')}"/>`;
+  h += `<text x="${(ex(0)+ex(g.span))/2}" y="${Y0+50}" fill="${cssv('--faint')}" font-size="10" font-family="monospace"
+          text-anchor="middle">${(g.span*1000).toFixed(0)}</text>`;
+
+  document.getElementById("elev").innerHTML = h;
+  return a;
+}
+
+function currentSpacer(){
+  if(manualSpacer !== null) return manualSpacer;
+  return unlocked >= 3 ? project.plan.selection.height : 0;   // fitted from the SIZE stage on
+}
+
+/* --- lane table + chart --- */
+function drawLanes(a){
+  const tb = document.querySelector("#lanes tbody");
+  tb.innerHTML = a.lanes.map(l=>{
+    const col = cssv(STATUS_COL[l.status]);
+    const on = ((l.min - a.required)*1000);
+    return `<tr><td>${l.lane}</td><td style="color:var(--dim)">${KLABEL[l.governing]}</td>
+      <td>${l.min.toFixed(3)} m</td>
+      <td style="color:${col}">${on>=0?"+":""}${on.toFixed(0)} mm</td>
+      <td><span class="tag" style="background:${col}22;color:${col}">${l.status.replace("_"," ")}</span></td></tr>`;
+  }).join("");
+  document.getElementById("lanechip").textContent =
+    a.conforming ? "all lanes compliant" : `${a.nonConformingLanes.length} lane(s) short`;
+
+  // bar chart against the requirement line
+  const W=520,H=150, pad=34, base=6.30, top=6.95;
+  const sy = v => H-24 - ((v-base)/(top-base))*(H-46);
+  let h = `<line x1="${pad-6}" y1="${sy(a.required)}" x2="${W-8}" y2="${sy(a.required)}"
+      stroke="${cssv('--ink')}" stroke-width="1.1" stroke-dasharray="4 3"/>
+    <text x="${W-10}" y="${sy(a.required)-6}" fill="${cssv('--ink')}" font-size="9.5" font-family="monospace"
+      text-anchor="end">required ${a.required.toFixed(3)} m</text>`;
+  const bw = (W-pad-16)/a.lanes.length;
+  a.lanes.forEach((l,i)=>{
+    const col = cssv(STATUS_COL[l.status]);
+    const x = pad + i*bw + bw*0.18, w = bw*0.64;
+    const y = sy(Math.max(base, l.min));
+    h += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(1, (H-24)-y)}" fill="${col}" opacity="0.30"/>`;
+    h += `<line x1="${x}" y1="${y}" x2="${x+w}" y2="${y}" stroke="${col}" stroke-width="2.2"/>`;
+    h += `<text x="${x+w/2}" y="${y-6}" fill="${col}" font-size="10" font-family="monospace" text-anchor="middle"
+            font-weight="700">${l.min.toFixed(3)}</text>`;
+    h += `<text x="${x+w/2}" y="${H-8}" fill="${cssv('--faint')}" font-size="9.5" font-family="monospace"
+            text-anchor="middle">${l.lane}</text>`;
+  });
+  document.getElementById("lanechart").innerHTML = h;
+}
+
+/* --- process spine --- */
+function drawSpine(){
+  const box = document.getElementById("spine");
+  box.innerHTML = project.stages.map((s,i)=>{
+    const on = i <= unlocked, active = i === activeStage;
+    const col = on ? cssv(VERDICT_COL[s.verdict]) : cssv("--faint");
+    return `<button class="stg" data-i="${i}" data-on="${on?1:0}" data-active="${active?1:0}"
+       data-dim="${on?0:1}" style="border-top-color:${active||on?col:cssv('--rule')}">
+      <div class="no">${String(i+1).padStart(2,"0")}</div>
+      <div class="nm">${STAGE_TITLE[s.stage]}</div>
+      <div class="vd" style="color:${col}">${on?s.verdict:"—"}</div></button>`;
+  }).join("");
+}
+
+/* --- stage panel --- */
+function drawStage(){
+  const s = project.stages[activeStage];
+  const col = cssv(VERDICT_COL[s.verdict]);
+  document.getElementById("stageh2").innerHTML =
+    `${String(activeStage+1).padStart(2,"0")} · ${STAGE_TITLE[s.stage]}
+     <span class="chip" style="color:${col};border-color:${col}66">${s.verdict}</span>`;
+  document.getElementById("stageq").textContent = STAGE_Q[s.stage];
+  const hl = document.getElementById("stageheadline");
+  hl.textContent = s.headline; hl.style.color = col;
+
+  let body = `<ul class="findings">${s.findings.map(f=>`<li>${f}</li>`).join("")}</ul>`;
+
+  if(s.stage === "review"){
+    const reg = project.register;
+    const cols = [["open","Open"],["responded","Responded"],["agreed","Agreed"],["closed","Closed"]];
+    body += `<div class="board" style="margin-top:12px">` + cols.map(([k,label])=>{
+      const list = reg.comments.filter(c=>c.state===k);
+      return `<div class="col"><div class="ch"><span>${label}</span><span>${list.length}</span></div>` +
+        list.map(c=>`<div class="cmt ${c.sev==="blocking"?"blocking":""}">${c.ref} · ${c.sec}
+          <div class="cd">${c.disc}</div></div>`).join("") + `</div>`;
+    }).join("") + `</div>`;
+    body += `<div class="holds">` + reg.holds.map(h=>
+      `<div class="hold"><span class="hm" style="color:${h.met?cssv('--pass'):cssv('--fail')}">${h.met?"✓":"○"}</span>
+       <span>${h.ref} ${h.title}</span></div>`).join("") + `</div>`;
+  }
+
+  if(s.stage === "package"){
+    const wp = project.workpack;
+    body += `<div class="holds" style="grid-template-columns:repeat(3,1fr);margin-bottom:4px">
+      <div class="hold"><span>${wp.items} units</span></div>
+      <div class="hold"><span>${(wp.duration/60).toFixed(1)} h possession</span></div>
+      <div class="hold"><span>${wp.lanes.length} lane closures</span></div></div>`;
+    body += `<ol class="steps" style="margin-top:10px">` + wp.steps.map(st=>
+      `<li class="${st.hold?"hold":""}"><b>${st.title}${st.hold?" · hold point":""}</b><span>${st.detail}</span></li>`).join("") + `</ol>`;
+  }
+
+  if(s.stage === "validate"){
+    const fb = project.fovBefore, fa = project.fovAfter;
+    body += fovSvg(fb, fa);
+  }
+
+  document.getElementById("stagebody").innerHTML = body;
+}
+
+function fovSvg(fb, fa){
+  const W=460,H=132, cx=70, cy=40, R=96;
+  const pol = (deg,r)=>[cx + r*Math.cos(deg*Math.PI/180), cy + r*Math.sin(deg*Math.PI/180)];
+  const arc = (a1,a2,r,col,op)=>{
+    const [x1,y1]=pol(a1,r), [x2,y2]=pol(a2,r);
+    return `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z" fill="${col}" opacity="${op}"/>`;
+  };
+  const okc = fa.workable ? cssv("--pass") : cssv("--fail");
+  let h = `<svg viewBox="0 0 ${W} ${H}" style="margin-top:12px">`;
+  h += arc(fb.min, fb.max, R, cssv("--dim"), 0.16);
+  h += arc(fa.min, fa.max, R, okc, 0.30);
+  [[fb.min,"--dim",`was ${fb.min.toFixed(1)}°`],[fa.min,okc,`now ${fa.min.toFixed(1)}°`],
+   [fa.max,cssv("--dim"),`max ${fa.max.toFixed(0)}°`]].forEach(([d,c,lab])=>{
+    const [x,y]=pol(d,R); const col = c.startsWith("--")?cssv(c):c;
+    h += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${col}" stroke-width="1.2"/>`;
+    h += `<text x="${x+7}" y="${y+4}" fill="${col}" font-size="9.5" font-family="monospace">${lab}</text>`;
+  });
+  const [ox,oy]=pol(fa.operating,R*0.72);
+  h += `<line x1="${cx}" y1="${cy}" x2="${ox}" y2="${oy}" stroke="${cssv('--ink')}" stroke-width="2"/>`;
+  h += `<text x="${ox+6}" y="${oy+13}" fill="${cssv('--ink')}" font-size="10" font-family="monospace" font-weight="700">operating ${fa.operating}°</text>`;
+  h += `<circle cx="${cx}" cy="${cy}" r="4" fill="${cssv('--ink')}"/>`;
+  h += `<text x="${cx-56}" y="${cy+4}" fill="${cssv('--faint')}" font-size="9.5" font-family="monospace">sensor</text>`;
+  h += `<line x1="${cx}" y1="${cy}" x2="${cx+R}" y2="${cy}" stroke="${cssv('--rule')}" stroke-width="0.8" stroke-dasharray="3 3"/>`;
+  h += `</svg>`;
+  return h;
+}
+
+/* --- assistant + title block --- */
+function drawAssistant(){
+  const col = {critical:cssv("--fail"), elevated:cssv("--marginal"), normal:cssv("--pass")}[rec.priority];
+  document.getElementById("assist").style.borderLeftColor = col;
+  const p = document.getElementById("prio");
+  p.textContent = rec.priority; p.style.background = col+"22"; p.style.color = col;
+  document.getElementById("headline").textContent = rec.headline;
+  document.getElementById("actions").innerHTML = rec.actions.map(a=>`<li>${a}</li>`).join("");
+  document.getElementById("trace").textContent = rec.trace.join("\n");
+}
+function drawTitleBlock(a){
+  document.getElementById("tb-struct").textContent = `${scen.g.span.toFixed(1)} m · ${scen.c.lanes.length} lanes`;
+  document.getElementById("tb-req").textContent = `${a.required.toFixed(3)} m`;
+  const released = project.stages.find(s=>s.stage==="approve").verdict==="pass";
+  const st = document.getElementById("tb-status");
+  const shown = unlocked >= 6;
+  st.textContent = shown ? (released ? "RELEASED" : "HELD") : "IN REVIEW";
+  st.style.color = shown ? (released ? cssv("--pass") : cssv("--fail")) : cssv("--dim");
+  document.getElementById("elevchip").textContent =
+    currentSpacer() > 0 ? `${(currentSpacer()*1000).toFixed(0)} mm spacer fitted` : "as surveyed";
+}
+
+function renderAll(){
+  const a = drawElevation();
+  drawLanes(a); drawSpine(); drawStage(); drawTitleBlock(a);
+  const sp = currentSpacer();
+  document.getElementById("sp").value = Math.round(sp*1000);
+  document.getElementById("spval").textContent = `${(sp*1000).toFixed(0)} mm`;
+}
+
+/* --- envelope sweep --- */
+if(!reduce){
+  setInterval(()=>{
+    envT += 0.012; if(envT > 1) envT = 0;
+    const el = document.getElementById("envelope");
+    if(el && scen){ drawElevation(); }
+  }, 90);
+}
+
+/* --- run / navigation --- */
+function stopRun(){ if(runTimer){ clearInterval(runTimer); runTimer=null; }
+  document.getElementById("run").textContent = "▶ run the process"; }
+function runProcess(){
+  if(runTimer) return stopRun();
+  unlocked = 0; activeStage = 0; manualSpacer = null; renderAll();
+  document.getElementById("run").textContent = "❚❚ pause";
+  runTimer = setInterval(()=>{
+    if(unlocked >= project.stages.length-1){ stopRun(); return; }
+    unlocked++; activeStage = unlocked; renderAll();
+  }, reduce ? 1 : 1250);
+}
+
+function load(name){
+  stopRun();
+  const s = SCEN[name]();
+  s.items = buildEquipment(s.c);
+  scen = s;
+  project = runPipeline(s.g, s.c, s.items, s.std, s.forced);
+  rec = advise(project);
+  manualSpacer = null; unlocked = 0; activeStage = 0;
+  document.getElementById("note").textContent = s.note;
+  drawAssistant(); renderAll();
+  if(!reduce) runProcess();
+}
+
+document.getElementById("scenarios").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b || b.id==="run") return;
+  [...document.querySelectorAll("#scenarios button[data-s]")].forEach(x=>x.setAttribute("aria-pressed", x===b));
+  load(b.dataset.s);
+});
+document.getElementById("run").addEventListener("click", runProcess);
+document.getElementById("spine").addEventListener("click", e=>{
+  const b = e.target.closest(".stg"); if(!b) return;
+  stopRun();
+  const i = +b.dataset.i;
+  activeStage = i; unlocked = Math.max(unlocked, i); renderAll();
+});
+document.getElementById("sp").addEventListener("input", e=>{
+  stopRun(); manualSpacer = (+e.target.value)/1000; unlocked = Math.max(unlocked, 3); renderAll();
+});
+document.getElementById("autosize").addEventListener("click", ()=>{
+  manualSpacer = null; unlocked = Math.max(unlocked, 3); renderAll();
+});
+
+load("as_surveyed");
+</script>
+</body>
+</html>
